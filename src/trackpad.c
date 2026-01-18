@@ -78,12 +78,12 @@ static void trackpad_trigger_handler(const struct device *dev, const struct iqs5
     }
     
     // In idle mode, reduce processing frequency significantly
-    if (is_idle_mode && (current_time - last_event_time < 100)) {
-        return; // Skip processing in idle mode unless 100ms passed
+    if (is_idle_mode && (current_time - last_event_time < 50)) {
+        return; // Skip processing in idle mode unless 50ms passed
     }
 
     // Rate limit ONLY movement events, NEVER gesture events
-    if (!has_gesture && !finger_count_changed && (current_time - last_event_time < 20)) {
+    if (!has_gesture && !finger_count_changed && (current_time - last_event_time < 8)) {
         return; // Skip only movement-only events
     }
     // Only update last_event_time for non-gesture events to avoid blocking subsequent gestures

@@ -163,7 +163,7 @@ static void handle_scroll_gesture(const struct iqs5xx_rawdata *data) {
     int64_t current_time = k_uptime_get();
 
     // Rate limit scrolling to prevent too many events
-    if (current_time - two_finger_state.last_scroll_time < 50) {
+    if (current_time - two_finger_state.last_scroll_time < 16) {
         return;
     }
 

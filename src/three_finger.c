@@ -49,7 +49,7 @@ static void send_control_up(void) {
         return;
     }
     zmk_endpoints_send_report(HID_USAGE_KEY);
-    k_msleep(30); // Reduced hold time
+    k_msleep(10); // Reduced hold time
 
     // Release Up Arrow
     zmk_hid_keyboard_release(UP_ARROW);
@@ -64,7 +64,7 @@ static void send_control_up(void) {
     // CRITICAL FIX: Complete cleanup after Mission Control
     zmk_hid_keyboard_clear();
     zmk_endpoints_send_report(HID_USAGE_KEY);
-    k_msleep(30); // Reduced cleanup time
+    k_msleep(10); // Reduced cleanup time
 }
 
 // FIXED: Proper state cleanup after Application Windows
@@ -82,7 +82,7 @@ static void send_control_down(void) {
     zmk_endpoints_send_report(HID_USAGE_KEY);
     k_msleep(10);
 
-    // Press Down Arrow
+    // Press Up Arrow
     int ret2 = zmk_hid_keyboard_press(UP_ARROW);
     if (ret2 < 0) {
         zmk_hid_keyboard_release(LEFT_CONTROL);
@@ -90,7 +90,7 @@ static void send_control_down(void) {
         return;
     }
     zmk_endpoints_send_report(HID_USAGE_KEY);
-    k_msleep(30); // Reduced hold time
+    k_msleep(10); // Reduced hold time
 
     // Release Down Arrow
     zmk_hid_keyboard_release(UP_ARROW);
@@ -105,7 +105,7 @@ static void send_control_down(void) {
     // CRITICAL FIX: Complete cleanup after Application Windows
     zmk_hid_keyboard_clear();
     zmk_endpoints_send_report(HID_USAGE_KEY);
-    k_msleep(30); // Reduced cleanup time
+    k_msleep(10); // Reduced cleanup time
 }
 
 void handle_three_finger_gestures(const struct device *dev, const struct iqs5xx_rawdata *data, struct gesture_state *state) {
