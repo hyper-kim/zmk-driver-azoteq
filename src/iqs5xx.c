@@ -139,9 +139,8 @@ static void iqs5xx_work_cb(struct k_work *work) {
 
         if (data->data_ready_handler != NULL) {
             data->data_ready_handler(data->dev, &data->raw_data);
-        } else {
-            return;
         }
+        // Continue to unlock mutex below
     } else {
         // I2C Error handling
         data->consecutive_errors++;
@@ -440,11 +439,7 @@ static int iqs5xx_init(const struct device *dev) {
     // Test I2C communication with a simple read
     uint8_t test_buf[2];
     ret = iqs5xx_seq_read(dev, ProductNumber_adr, test_buf, 2);
-    if (ret < 0) {
-        return 0;
-    } else {
-        return 0;
-    }
+    // Continue with initialization regardless of test result
 
     // Initialize device registers
     struct iqs5xx_reg_config iqs5xx_registers = iqs5xx_reg_config_default();
@@ -456,9 +451,7 @@ static int iqs5xx_init(const struct device *dev) {
     // Final test - try to read some data
     ret = iqs5xx_sample_fetch(dev);
     if (ret < 0) {
-        return 0;
-    } else {
-        return 0;
+        // Log error but don't fail initialization
     }
 
     return 0;
