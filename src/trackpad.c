@@ -21,6 +21,12 @@ static int64_t last_event_time = 0; // For rate-limiting
 static int64_t last_activity_time = 0; // For idle detection
 static bool is_idle_mode = false;
 
+// Performance tuning notes:
+// - 2ms rate limit provides ~500Hz update rate for ultra-smooth macOS performance
+// - 16ms idle threshold maintains 60Hz when inactive
+// - Higher rate limits (3ms+) can still feel slightly laggy on high-refresh displays
+// - Windows handles batched events differently and is less sensitive to rate limiting
+
 // Optimized input event sending
 void send_input_event(uint8_t type, uint16_t code, int32_t value, bool sync) {
     event_count++;
@@ -78,12 +84,13 @@ static void trackpad_trigger_handler(const struct device *dev, const struct iqs5
     }
     
     // In idle mode, reduce processing frequency significantly
-    if (is_idle_mode && (current_time - last_event_time < 50)) {
-        return; // Skip processing in idle mode unless 50ms passed
+    if (is_idle_mode && (current_time - last_event_time < 16)) {
+        return; // Skip processing in idle mode unless 16ms passed (60Hz)
     }
 
     // Rate limit ONLY movement events, NEVER gesture events
-    if (!has_gesture && !finger_count_changed && (current_time - last_event_time < 8)) {
+    // Using 2ms for ultra-smooth macOS performance (~500Hz update rate)
+    if (!has_gesture && !finger_count_changed && (current_time - last_event_time < 2)) {
         return; // Skip only movement-only events
     }
     // Only update last_event_time for non-gesture events to avoid blocking subsequent gestures
