@@ -22,7 +22,7 @@ static int iqs_regdump_err = 0;
 struct iqs5xx_reg_config iqs5xx_reg_config_default () {
     struct iqs5xx_reg_config regconf;
 
-        regconf.activeRefreshRate =         5;    // Increased from 10 for faster response
+        regconf.activeRefreshRate =         3;    // Optimized for macOS - matches 2ms software rate limit
         regconf.idleRefreshRate =           20;   // Increased from 50
         regconf.singleFingerGestureMask =   GESTURE_SINGLE_TAP | GESTURE_TAP_AND_HOLD;
         regconf.multiFingerGestureMask =    GESTURE_TWO_FINGER_TAP | GESTURE_SCROLLG;
@@ -31,10 +31,10 @@ struct iqs5xx_reg_config iqs5xx_reg_config_default () {
         regconf.touchMultiplier =           0;
         regconf.debounce =                  0;
         regconf.i2cTimeout =                10;   // Increased for better reliability
-        regconf.filterSettings =            MAV_FILTER | IIR_FILTER;
-        regconf.filterDynBottomBeta =        15;  // Reduced for less filtering
-        regconf.filterDynLowerSpeed =        10;  // Reduced for faster response
-        regconf.filterDynUpperSpeed =        200; // Increased for better fast movements
+        regconf.filterSettings =            MAV_FILTER;  // Only MAV filter for less lag
+        regconf.filterDynBottomBeta =        8;   // Further reduced for minimal filtering
+        regconf.filterDynLowerSpeed =        5;   // Further reduced for immediate response
+        regconf.filterDynUpperSpeed =        250; // Increased for better fast movements
         regconf.initScrollDistance =        10;   // Reduced for easier scrolling
 
         return regconf;
