@@ -64,8 +64,7 @@ struct iqs5xx_data {
     // i2c mutex
     struct k_mutex i2c_mutex;
     // Work queue item for handling interrupts
-    struct k_work work;
-    // Error tracking
+	struct k_work_delayable work;    // Error tracking
     int consecutive_errors;
     int64_t last_error_time;
 };
