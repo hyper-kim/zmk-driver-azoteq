@@ -128,7 +128,8 @@ static int iqs5xx_sample_fetch (const struct device *dev) {
 }
 
 static void iqs5xx_work_cb(struct k_work *work) {
-    struct iqs5xx_data *data = CONTAINER_OF(work, struct iqs5xx_data, work);
+    struct k_work_delayable *dwork = k_work_delayable_from_work(work);
+    struct iqs5xx_data *data = CONTAINER_OF(dwork, struct iqs5xx_data, work);
 
     k_mutex_lock(&data->i2c_mutex, K_MSEC(1000));
     int ret = iqs5xx_sample_fetch(data->dev);
@@ -193,6 +194,7 @@ static void iqs5xx_work_cb(struct k_work *work) {
     }
 
     k_mutex_unlock(&data->i2c_mutex);
+    k_work_reschedule(&data->work, K_MSEC(10));
 }
 
 /**
@@ -413,28 +415,8 @@ static int iqs5xx_init(const struct device *dev) {
     }
 
     k_mutex_init(&data->i2c_mutex);
-    k_work_init(&data->work, iqs5xx_work_cb);
-
-    // Configure data ready pin
-    int ret = gpio_pin_configure_dt(&config->dr, GPIO_INPUT);
-    if (ret < 0) {
-        return ret;
-    }
-
-    // Initialize interrupt callback
-    gpio_init_callback(&data->dr_cb, iqs5xx_gpio_cb, BIT(config->dr.pin));
-
-    // Add callback
-    ret = gpio_add_callback(config->dr.port, &data->dr_cb);
-    if (ret < 0) {
-        return ret;
-    }
-
-    // Configure data ready interrupt
-    ret = gpio_pin_interrupt_configure_dt(&config->dr, GPIO_INT_EDGE_TO_ACTIVE);
-    if (ret < 0) {
-        return ret;
-    }
+    k_work_init_delayable(&data->work, iqs5xx_work_cb);
+    
 
     // Test I2C communication with a simple read
     uint8_t test_buf[2];
@@ -453,6 +435,9 @@ static int iqs5xx_init(const struct device *dev) {
     if (ret < 0) {
         // Log error but don't fail initialization
     }
+
+    /* 추가: 전원 켜지자마자 10ms 폴링 무한루프 시작! */
+    k_work_reschedule(&data->work, K_MSEC(10));
 
     return 0;
 }
