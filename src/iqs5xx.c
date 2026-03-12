@@ -119,6 +119,11 @@ static void iqs5xx_work_cb(struct k_work *work) {
     struct iqs5xx_data *data = CONTAINER_OF(dwork, struct iqs5xx_data, work);
 
     k_mutex_lock(&data->i2c_mutex, K_MSEC(100));
+
+    /* 🔥 추가된 꼼수: 가짜 통신으로 칩셋 뺨 때려서 깨우기 (Wake-up Ping) 🔥 */
+    uint8_t dummy = 0;
+    i2c_write(data->i2c, &dummy, 0, AZOTEQ_IQS5XX_ADDR); 
+    k_usleep(2000); // 뺨 때리고 2ms 동안 정신 차릴 때까지 기다려줌
     int ret = iqs5xx_sample_fetch(data->dev);
     
     // 에러 나든 말든(ret < 0) 신경 안 씀! 통신 성공했을 때만 데이터 전송
