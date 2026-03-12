@@ -36,13 +36,21 @@ struct iqs5xx_reg_config iqs5xx_reg_config_default () {
     return regconf;
 }
 
+/* 🔥 해킹 1: 읽기 실패하면 1ms마다 최대 100번 재시도 (문 열릴 때까지 대기) 🔥 */
 static int iqs5xx_seq_read(const struct device *dev, const uint16_t start, uint8_t *read_buf, const uint8_t len) {
     const struct iqs5xx_data *data = dev->data;
     uint16_t nstart = (start << 8 ) | (start >> 8);
-    int ret = i2c_write_read(data->i2c, AZOTEQ_IQS5XX_ADDR, &nstart, sizeof(nstart), read_buf, len);
+    int ret = -1;
+    
+    for (int i = 0; i < 100; i++) {
+        ret = i2c_write_read(data->i2c, AZOTEQ_IQS5XX_ADDR, &nstart, sizeof(nstart), read_buf, len);
+        if (ret == 0) return 0; // 성공하면 즉시 탈출
+        k_usleep(1000); // 1ms 대기 후 재시도
+    }
     return ret;
 }
 
+/* 🔥 해킹 2: 쓰기 실패하면 1ms마다 최대 100번 재시도 🔥 */
 static int iqs5xx_write(const struct device *dev, const uint16_t start_addr, const uint8_t *buf, uint32_t num_bytes) {
     const struct iqs5xx_data *data = dev->data;
     uint8_t addr_buffer[2];
@@ -58,13 +66,17 @@ static int iqs5xx_write(const struct device *dev, const uint16_t start_addr, con
     msg[1].len = num_bytes;
     msg[1].flags = I2C_MSG_WRITE | I2C_MSG_STOP;
 
-    int err = i2c_transfer(data->i2c, msg, 2, AZOTEQ_IQS5XX_ADDR);
-    return err;
+    int ret = -1;
+    for (int i = 0; i < 100; i++) {
+        ret = i2c_transfer(data->i2c, msg, 2, AZOTEQ_IQS5XX_ADDR);
+        if (ret == 0) return 0; // 성공하면 즉시 탈출
+        k_usleep(1000); // 1ms 대기 후 재시도
+    }
+    return ret;
 }
 
 static int iqs5xx_reg_dump (const struct device *dev) {
-    int ret = iqs5xx_write(dev, IQS5XX_REG_DUMP_START_ADDRESS, _iqs5xx_regdump, IQS5XX_REG_DUMP_SIZE);
-    return ret;
+    return iqs5xx_write(dev, IQS5XX_REG_DUMP_START_ADDRESS, _iqs5xx_regdump, IQS5XX_REG_DUMP_SIZE);
 }
 
 static int iqs5xx_sample_fetch (const struct device *dev) {
@@ -75,9 +87,7 @@ static int iqs5xx_sample_fetch (const struct device *dev) {
     int res = iqs5xx_seq_read(dev, GestureEvents0_adr, buffer, 44);
     iqs5xx_write(dev, END_WINDOW, 0, 1);
 
-    if (res < 0) {
-        return res;
-    }
+    if (res < 0) return res;
 
     data->raw_data.gestures0 =      buffer[0];
     data->raw_data.gestures1 =      buffer[1];
@@ -100,54 +110,25 @@ static int iqs5xx_sample_fetch (const struct device *dev) {
         data->raw_data.fingers[i].area= buffer[p + 6];
         apply_finger_transform(&data->raw_data.fingers[i], config);
     }
-
     return 0;
 }
 
+/* 🔥 해킹 3: 에러 카운터, 강제 리셋 로직 모조리 삭제. 무조건 10ms마다 불도저처럼 전진 🔥 */
 static void iqs5xx_work_cb(struct k_work *work) {
     struct k_work_delayable *dwork = k_work_delayable_from_work(work);
     struct iqs5xx_data *data = CONTAINER_OF(dwork, struct iqs5xx_data, work);
 
-    k_mutex_lock(&data->i2c_mutex, K_MSEC(1000));
+    k_mutex_lock(&data->i2c_mutex, K_MSEC(100));
     int ret = iqs5xx_sample_fetch(data->dev);
-
-    if (ret == 0) {
-        data->consecutive_errors = 0;
-        if (data->data_ready_handler != NULL) {
-            data->data_ready_handler(data->dev, &data->raw_data);
-        }
-    } else {
-        data->consecutive_errors++;
-        int64_t current_time = k_uptime_get();
-
-        if (data->consecutive_errors >= 15) {
-            data->consecutive_errors = 0;
-            data->last_error_time = current_time;
-            k_mutex_unlock(&data->i2c_mutex);
-            
-            /* 인터럽트 핀 제어 로직 완전히 삭제됨 (충돌 원인 차단) */
-            k_msleep(200);
-
-            uint8_t reset_cmd = RESET_TP;
-            iqs5xx_write(data->dev, SystemControl1_adr, &reset_cmd, 1);
-            iqs5xx_write(data->dev, END_WINDOW, 0, 1);
-            k_msleep(100);
-
-            k_work_reschedule(&data->work, K_MSEC(10));
-            return;
-        }
-
-        if ((current_time - data->last_error_time > 3000) && (data->consecutive_errors > 5)) {
-            /* 인터럽트 핀 제어 로직 완전히 삭제됨 */
-            k_mutex_unlock(&data->i2c_mutex);
-            k_msleep(500);
-            k_mutex_lock(&data->i2c_mutex, K_MSEC(1000));
-            data->consecutive_errors = 0;
-            data->last_error_time = current_time;
-        }
+    
+    // 에러 나든 말든(ret < 0) 신경 안 씀! 통신 성공했을 때만 데이터 전송
+    if (ret == 0 && data->data_ready_handler != NULL) {
+        data->data_ready_handler(data->dev, &data->raw_data);
     }
-
+    
     k_mutex_unlock(&data->i2c_mutex);
+    
+    // 무조건 10ms 뒤에 다시 예약!
     k_work_reschedule(&data->work, K_MSEC(10));
 }
 
@@ -161,125 +142,69 @@ int iqs5xx_registers_init (const struct device *dev, const struct iqs5xx_reg_con
     struct iqs5xx_data *data = dev->data;
     k_mutex_lock(&data->i2c_mutex, K_MSEC(5000));
 
-    k_msleep(50); /* 핀 대기열 삭제 */
-
     uint8_t buf = RESET_TP;
-    int ret = iqs5xx_write(dev, SystemControl1_adr, &buf, 1);
-    if (ret < 0) {
-        k_mutex_unlock(&data->i2c_mutex);
-        return ret;
-    }
-
+    iqs5xx_write(dev, SystemControl1_adr, &buf, 1);
     iqs5xx_write(dev, END_WINDOW, 0, 1);
-    k_msleep(50); /* 핀 대기열 삭제 */
-
     iqs_regdump_err = iqs5xx_reg_dump(dev);
-    if (iqs_regdump_err < 0) {
-        k_mutex_unlock(&data->i2c_mutex);
-        return iqs_regdump_err;
-    }
 
-    k_msleep(50); /* 핀 대기열 삭제 */
-
-    int err = 0;
     uint8_t wbuff[16];
-
     *((uint16_t*)wbuff) = SWPEND16(config->activeRefreshRate);
-    ret = iqs5xx_write(dev, ActiveRR_adr, wbuff, 2);
-    if (ret < 0) err |= ret;
+    iqs5xx_write(dev, ActiveRR_adr, wbuff, 2);
 
     *((uint16_t*)wbuff) = SWPEND16(config->idleRefreshRate);
-    ret = iqs5xx_write(dev, IdleRR_adr, wbuff, 2);
-    if (ret < 0) err |= ret;
+    iqs5xx_write(dev, IdleRR_adr, wbuff, 2);
 
-    ret = iqs5xx_write(dev, SFGestureEnable_adr, &config->singleFingerGestureMask, 1);
-    if (ret < 0) err |= ret;
-
-    ret = iqs5xx_write(dev, MFGestureEnable_adr, &config->multiFingerGestureMask, 1);
-    if (ret < 0) err |= ret;
+    iqs5xx_write(dev, SFGestureEnable_adr, &config->singleFingerGestureMask, 1);
+    iqs5xx_write(dev, MFGestureEnable_adr, &config->multiFingerGestureMask, 1);
 
     *((uint16_t*)wbuff) = SWPEND16(config->tapTime);
-    ret = iqs5xx_write(dev, TapTime_adr, wbuff, 2);
-    if (ret < 0) err |= ret;
+    iqs5xx_write(dev, TapTime_adr, wbuff, 2);
 
     *((uint16_t*)wbuff) = SWPEND16(config->tapDistance);
-    ret = iqs5xx_write(dev, TapDistance_adr, wbuff, 2);
-    if (ret < 0) err |= ret;
+    iqs5xx_write(dev, TapDistance_adr, wbuff, 2);
 
-    ret = iqs5xx_write(dev, GlobalTouchSet_adr, &config->touchMultiplier, 1);
-    if (ret < 0) err |= ret;
-
-    ret = iqs5xx_write(dev, ProxDb_adr, &config->debounce, 1);
-    if (ret < 0) err |= ret;
-
-    ret = iqs5xx_write(dev, TouchSnapDb_adr, &config->debounce, 1);
-    if (ret < 0) err |= ret;
+    iqs5xx_write(dev, GlobalTouchSet_adr, &config->touchMultiplier, 1);
+    iqs5xx_write(dev, ProxDb_adr, &config->debounce, 1);
+    iqs5xx_write(dev, TouchSnapDb_adr, &config->debounce, 1);
 
     wbuff[0] = 0;
-    ret = iqs5xx_write(dev, HardwareSettingsA_adr, wbuff, 1);
-    if (ret < 0) err |= ret;
-
-    ret = iqs5xx_write(dev, I2CTimeout_adr, &config->i2cTimeout, 1);
-    if (ret < 0) err |= ret;
-
-    ret = iqs5xx_write(dev, FilterSettings0_adr, &config->filterSettings, 1);
-    if (ret < 0) err |= ret;
-
-    ret = iqs5xx_write(dev, DynamicBottomBeta_adr, &config->filterDynBottomBeta, 1);
-    if (ret < 0) err |= ret;
-
-    ret = iqs5xx_write(dev, DynamicLowerSpeed_adr, &config->filterDynLowerSpeed, 1);
-    if (ret < 0) err |= ret;
+    iqs5xx_write(dev, HardwareSettingsA_adr, wbuff, 1);
+    iqs5xx_write(dev, I2CTimeout_adr, &config->i2cTimeout, 1);
+    iqs5xx_write(dev, FilterSettings0_adr, &config->filterSettings, 1);
+    iqs5xx_write(dev, DynamicBottomBeta_adr, &config->filterDynBottomBeta, 1);
+    iqs5xx_write(dev, DynamicLowerSpeed_adr, &config->filterDynLowerSpeed, 1);
 
     *((uint16_t*)wbuff) = SWPEND16(config->filterDynUpperSpeed);
-    ret = iqs5xx_write(dev, DynamicUpperSpeed_adr, wbuff, 2);
-    if (ret < 0) err |= ret;
+    iqs5xx_write(dev, DynamicUpperSpeed_adr, wbuff, 2);
 
     *((uint16_t*)wbuff) = SWPEND16(config->initScrollDistance);
-    ret = iqs5xx_write(dev, ScrollInitDistance_adr, wbuff, 2);
-    if (ret < 0) err |= ret;
+    iqs5xx_write(dev, ScrollInitDistance_adr, wbuff, 2);
 
     iqs5xx_write(dev, END_WINDOW, 0, 1);
     k_mutex_unlock(&data->i2c_mutex);
 
-    return err == 0 ? 0 : err;
+    return 0; // 에러 무시
 }
 
 static int iqs5xx_init(const struct device *dev) {
     struct iqs5xx_data *data = dev->data;
-    
     data->dev = dev;
     data->i2c = DEVICE_DT_GET(DT_BUS(DT_DRV_INST(0)));
 
-    if (!data->i2c) {
-        return -ENODEV;
-    }
-
-    /* GPIO 장치 준비 확인 로직 완.전.히. 삭.제됨 */
+    if (!data->i2c) return -ENODEV;
 
     k_mutex_init(&data->i2c_mutex);
     k_work_init_delayable(&data->work, iqs5xx_work_cb);
     
-    uint8_t test_buf[2];
-    int ret = iqs5xx_seq_read(dev, ProductNumber_adr, test_buf, 2);
-
     struct iqs5xx_reg_config iqs5xx_registers = iqs5xx_reg_config_default();
-    ret = iqs5xx_registers_init(dev, &iqs5xx_registers);
-    if(ret) {
-        return ret;
-    }
+    iqs5xx_registers_init(dev, &iqs5xx_registers);
 
-    ret = iqs5xx_sample_fetch(dev);
-
-    /* 전원 켜지자마자 10ms 폴링 시작! */
+    /* 불도저 엔진 시동! */
     k_work_reschedule(&data->work, K_MSEC(10));
-
     return 0;
 }
 
-static struct iqs5xx_data iqs5xx_data_0 = {
-    .data_ready_handler = NULL
-};
+static struct iqs5xx_data iqs5xx_data_0 = { .data_ready_handler = NULL };
 
 static const struct iqs5xx_config iqs5xx_config_0 = {
     .dr = GPIO_DT_SPEC_GET_OR(DT_DRV_INST(0), dr_gpios, {}),
