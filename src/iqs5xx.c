@@ -42,7 +42,7 @@ static int iqs5xx_seq_read(const struct device *dev, const uint16_t start, uint8
     uint16_t nstart = (start << 8 ) | (start >> 8);
     int ret = -1;
     
-    for (int i = 0; i < 100; i++) {
+    for (int i = 0; i < 3; i++) {
         ret = i2c_write_read(data->i2c, AZOTEQ_IQS5XX_ADDR, &nstart, sizeof(nstart), read_buf, len);
         if (ret == 0) return 0; // 성공하면 즉시 탈출
         k_usleep(1000); // 1ms 대기 후 재시도
@@ -67,7 +67,7 @@ static int iqs5xx_write(const struct device *dev, const uint16_t start_addr, con
     msg[1].flags = I2C_MSG_WRITE | I2C_MSG_STOP;
 
     int ret = -1;
-    for (int i = 0; i < 100; i++) {
+    for (int i = 0; i < 3; i++) {
         ret = i2c_transfer(data->i2c, msg, 2, AZOTEQ_IQS5XX_ADDR);
         if (ret == 0) return 0; // 성공하면 즉시 탈출
         k_usleep(1000); // 1ms 대기 후 재시도
