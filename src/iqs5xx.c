@@ -19,12 +19,13 @@ static int iqs_regdump_err = 0;
 // Default config
 struct iqs5xx_reg_config iqs5xx_reg_config_default () {
     struct iqs5xx_reg_config regconf;
-    regconf.activeRefreshRate =         3;    
-    regconf.idleRefreshRate =           20;   
-    regconf.singleFingerGestureMask =   GESTURE_SINGLE_TAP | GESTURE_TAP_AND_HOLD;
-    regconf.multiFingerGestureMask =    GESTURE_TWO_FINGER_TAP | GESTURE_SCROLLG;
-    regconf.tapTime =                   100;  
-    regconf.tapDistance =               15;   
+    regconf.activeRefreshRate =         2;    // 🔥 3에서 2로 단축 (빠른 스캔)
+    regconf.idleRefreshRate =           10;   // 20에서 10으로 단축
+    // 🔥 모든 제스처 개방
+    regconf.singleFingerGestureMask =   0xFF; 
+    regconf.multiFingerGestureMask =    0xFF; 
+    regconf.tapTime =                   150;  
+    regconf.tapDistance =               20;   
     regconf.touchMultiplier =           0;
     regconf.debounce =                  0;
     regconf.i2cTimeout =                10;   
@@ -32,10 +33,10 @@ struct iqs5xx_reg_config iqs5xx_reg_config_default () {
     regconf.filterDynBottomBeta =        8;   
     regconf.filterDynLowerSpeed =        5;   
     regconf.filterDynUpperSpeed =        250; 
-    regconf.initScrollDistance =        10;   
+    // 🔥 10에서 25로 늘림 (살짝 만졌을 때 제스처가 아닌 커서 이동으로 인식하게 함)
+    regconf.initScrollDistance =        25;   
     return regconf;
 }
-
 /* 🔥 해킹 1: 읽기 실패하면 1ms마다 최대 100번 재시도 (문 열릴 때까지 대기) 🔥 */
 static int iqs5xx_seq_read(const struct device *dev, const uint16_t start, uint8_t *read_buf, const uint8_t len) {
     const struct iqs5xx_data *data = dev->data;
@@ -133,8 +134,7 @@ static void iqs5xx_work_cb(struct k_work *work) {
     
     k_mutex_unlock(&data->i2c_mutex);
     
-    // 무조건 10ms 뒤에 다시 예약!
-    k_work_reschedule(&data->work, K_MSEC(10));
+    k_work_reschedule(&data->work, K_MSEC(5));
 }
 
 int iqs5xx_trigger_set(const struct device *dev, iqs5xx_trigger_handler_t handler) {
