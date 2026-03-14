@@ -100,27 +100,27 @@ static void trackpad_trigger_handler(const struct device *dev, const struct iqs5
 
 
     // FIXED: Process gestures FIRST, before finger count logic
-    if (has_gesture) {
+    // if (has_gesture) {
 
-        // Handle single finger gestures - but avoid conflicts with multi-finger operations
-        if (data->gestures0) {
-            // Only process single finger gestures if:
-            // 1. No multi-finger operations are active, OR
-            // 2. This is a finger-lift gesture (finger_count == 0) from a single-finger session
-            bool can_process_single = !g_gesture_state.twoFingerActive && !g_gesture_state.threeFingersPressed;
-            if (can_process_single) {
-                handle_single_finger_gestures(dev, data, &g_gesture_state);
-            }
-        }
+    //     // Handle single finger gestures - but avoid conflicts with multi-finger operations
+    //     if (data->gestures0) {
+    //         // Only process single finger gestures if:
+    //         // 1. No multi-finger operations are active, OR
+    //         // 2. This is a finger-lift gesture (finger_count == 0) from a single-finger session
+    //         bool can_process_single = !g_gesture_state.twoFingerActive && !g_gesture_state.threeFingersPressed;
+    //         if (can_process_single) {
+    //             handle_single_finger_gestures(dev, data, &g_gesture_state);
+    //         }
+    //     }
 
-        // Handle two finger gestures
-        if (data->gestures1) {
-            handle_two_finger_gestures(dev, data, &g_gesture_state);
-        }
+    //     // Handle two finger gestures
+    //     if (data->gestures1) {
+    //         handle_two_finger_gestures(dev, data, &g_gesture_state);
+    //     }
         
-        // After processing gestures, don't immediately reset states to avoid conflicts
-        // State resets will happen in the finger count logic below if needed
-    }
+    //     // After processing gestures, don't immediately reset states to avoid conflicts
+    //     // State resets will happen in the finger count logic below if needed
+    // }
 
     // THEN handle finger count changes and movement
     switch (data->finger_count) {
