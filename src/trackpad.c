@@ -139,9 +139,9 @@ static void trackpad_trigger_handler(const struct device *dev, const struct iqs5
 
             // Handle single finger movement (but skip if gesture was already handled above)
             // This prevents double-processing of gestures
-            if (!has_gesture) {
+            // if (!has_gesture) {
                 handle_single_finger_gestures(dev, data, &g_gesture_state);
-            }
+            // }
             break;
 
         case 2:
