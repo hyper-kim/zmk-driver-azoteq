@@ -22,8 +22,8 @@ struct iqs5xx_reg_config iqs5xx_reg_config_default () {
     regconf.activeRefreshRate =         2;    // 🔥 3에서 2로 단축 (빠른 스캔)
     regconf.idleRefreshRate =           10;   // 20에서 10으로 단축
     // 🔥 모든 제스처 개방
-    regconf.singleFingerGestureMask =   0xFF; 
-    regconf.multiFingerGestureMask =    0xFF; 
+    regconf.singleFingerGestureMask =   0x00; 
+    regconf.multiFingerGestureMask =    0x00; 
     regconf.tapTime =                   150;  
     regconf.tapDistance =               20;   
     regconf.touchMultiplier =           0;
@@ -34,7 +34,7 @@ struct iqs5xx_reg_config iqs5xx_reg_config_default () {
     regconf.filterDynLowerSpeed =        5;   
     regconf.filterDynUpperSpeed =        250; 
     // 🔥 10에서 25로 늘림 (살짝 만졌을 때 제스처가 아닌 커서 이동으로 인식하게 함)
-    regconf.initScrollDistance =        25;   
+    regconf.initScrollDistance =        255;   
     return regconf;
 }
 /* 🔥 해킹 1: 읽기 실패하면 1ms마다 최대 100번 재시도 (문 열릴 때까지 대기) 🔥 */
