@@ -96,22 +96,21 @@ static int iqs5xx_sample_fetch (const struct device *dev) {
     data->raw_data.system_info1 =   buffer[3];
     data->raw_data.finger_count =   buffer[4];
 
-    int16_t raw_rx = (int16_t)(buffer[5] << 8 | buffer[6]);
-    int16_t raw_ry = (int16_t)(buffer[7] << 8 | buffer[8]);
+    int16_t raw_rx = (int16_t)(buffer[6] << 8 | buffer[5]);
+    int16_t raw_ry = (int16_t)(buffer[8] << 8 | buffer[7]);
 
     struct coord_transform rel_transformed = apply_coordinate_transform(raw_rx, raw_ry, config);
     data->raw_data.rx = rel_transformed.x;
     data->raw_data.ry = rel_transformed.y;
 
     for(int i = 0; i < 5; i++) {
-        const int p = 9 + (7 * i);
-        data->raw_data.fingers[i].ax = buffer[p + 0] << 8 | buffer[p + 1];
-        data->raw_data.fingers[i].ay = buffer[p + 2] << 8 | buffer[p + 3];
-        data->raw_data.fingers[i].strength = buffer[p + 4] << 8 | buffer[p + 5];
-        data->raw_data.fingers[i].area= buffer[p + 6];
-        apply_finger_transform(&data->raw_data.fingers[i], config);
-    }
-    return 0;
+    const int p = 9 + (7 * i);
+    // 모든 좌표 읽기 순서를 [p+1] << 8 | [p] 형태로 뒤집음
+    data->raw_data.fingers[i].ax = (uint16_t)(buffer[p + 1] << 8 | buffer[p + 0]);
+    data->raw_data.fingers[i].ay = (uint16_t)(buffer[p + 3] << 8 | buffer[p + 2]);
+    data->raw_data.fingers[i].strength = (uint16_t)(buffer[p + 5] << 8 | buffer[p + 4]);
+    data->raw_data.fingers[i].area = buffer[p + 6];
+    apply_finger_transform(&data->raw_data.fingers[i], config);
 }
 
 /* 🔥 해킹 3: 에러 카운터, 강제 리셋 로직 모조리 삭제. 무조건 10ms마다 불도저처럼 전진 🔥 */
