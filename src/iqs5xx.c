@@ -34,7 +34,7 @@ struct iqs5xx_reg_config iqs5xx_reg_config_default () {
     regconf.filterDynLowerSpeed =        5;   
     regconf.filterDynUpperSpeed =        250; 
     // 🔥 10에서 25로 늘림 (살짝 만졌을 때 제스처가 아닌 커서 이동으로 인식하게 함)
-    regconf.initScrollDistance =        255;   
+    regconf.initScrollDistance =        50;   
     return regconf;
 }
 /* 🔥 해킹 1: 읽기 실패하면 1ms마다 최대 100번 재시도 (문 열릴 때까지 대기) 🔥 */
