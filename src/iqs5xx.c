@@ -96,6 +96,7 @@ static int iqs5xx_sample_fetch (const struct device *dev) {
     data->raw_data.system_info1 =   buffer[3];
     data->raw_data.finger_count =   buffer[4];
 
+    /* 🔥 Little-Endian으로 뒤집은 상대 좌표 */
     int16_t raw_rx = (int16_t)(buffer[6] << 8 | buffer[5]);
     int16_t raw_ry = (int16_t)(buffer[8] << 8 | buffer[7]);
 
@@ -103,16 +104,20 @@ static int iqs5xx_sample_fetch (const struct device *dev) {
     data->raw_data.rx = rel_transformed.x;
     data->raw_data.ry = rel_transformed.y;
 
+    /* 🔥 Little-Endian으로 뒤집은 절대 좌표 및 강도 */
     for(int i = 0; i < 5; i++) {
-    const int p = 9 + (7 * i);
-    // 모든 좌표 읽기 순서를 [p+1] << 8 | [p] 형태로 뒤집음
-    data->raw_data.fingers[i].ax = (uint16_t)(buffer[p + 1] << 8 | buffer[p + 0]);
-    data->raw_data.fingers[i].ay = (uint16_t)(buffer[p + 3] << 8 | buffer[p + 2]);
-    data->raw_data.fingers[i].strength = (uint16_t)(buffer[p + 5] << 8 | buffer[p + 4]);
-    data->raw_data.fingers[i].area = buffer[p + 6];
-    apply_finger_transform(&data->raw_data.fingers[i], config);
-}
+        const int p = 9 + (7 * i);
+        data->raw_data.fingers[i].ax = (uint16_t)(buffer[p + 1] << 8 | buffer[p + 0]);
+        data->raw_data.fingers[i].ay = (uint16_t)(buffer[p + 3] << 8 | buffer[p + 2]);
+        data->raw_data.fingers[i].strength = (uint16_t)(buffer[p + 5] << 8 | buffer[p + 4]);
+        data->raw_data.fingers[i].area= buffer[p + 6];
+        apply_finger_transform(&data->raw_data.fingers[i], config);
+    }
+    
+    return 0; /* 👈 날아갔던 리턴문 복구 */
+} /* 👈 날아갔던 닫는 괄호 복구 완료! */
 
+/* (이 아래부터 기존 static void iqs5xx_work_cb 함수가 이어지면 됩니다) */
 /* 🔥 해킹 3: 에러 카운터, 강제 리셋 로직 모조리 삭제. 무조건 10ms마다 불도저처럼 전진 🔥 */
 static void iqs5xx_work_cb(struct k_work *work) {
     struct k_work_delayable *dwork = k_work_delayable_from_work(work);
